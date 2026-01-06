@@ -134,3 +134,77 @@ def format_result_summary(result: Dict[str, Any]) -> str:
         return f"{per_variant:,} per group, {total:,} total"
     else:
         return f"{per_variant:,} per variant, {total:,} total ({result['n_controls']}C + {result['n_treatments']}T)"
+
+
+def print_mde_report(result: Dict[str, Any]) -> None:
+    """
+    Display a formatted report for MDE calculation (reverse problem).
+
+    Args:
+        result: Dictionary returned by calculate_mde_for_sample().
+
+    Example:
+        >>> result = calculate_mde_for_sample(baseline=0.10, sample_size_per_group=5000)
+        >>> print_mde_report(result)
+    """
+    print("\n" + "=" * 40)
+    print("        MDE CALCULATION RESULTS")
+    print("=" * 40)
+
+    # Context summary
+    print(f"Metric:          {result['metric_type'].title()}")
+
+    # Test type with Welch's indicator
+    is_welch = (
+        result.get('std_dev_treatment')
+        and result.get('std_dev_control')
+        and result['std_dev_control'] != result['std_dev_treatment']
+    )
+    test_prefix = "Welch's " if is_welch else ""
+    test_suffix = "T-Test" if result['test_type'] == 't' else "Z-Test"
+    print(f"Test Type:       {test_prefix}{test_suffix}, {result['sides']}-Sided")
+
+    print("-" * 40)
+
+    # Given parameters
+    print("GIVEN:")
+    print(f"  Sample Size (per group): {result['sample_size_per_group']:,}")
+    if result['ratio'] != 1.0:
+        print(f"  Ratio (Trt/Ctrl):        {result['ratio']:.2f}")
+        print(f"  Total Sample Size:       {result['total_sample_size']:,}")
+    print(f"  Power:                   {result['power']:.0%}")
+    print(f"  Alpha:                   {result['alpha']}")
+
+    print("-" * 40)
+
+    # Calculated MDE
+    print("RESULT:")
+    if result['metric_type'] == 'proportion':
+        baseline = result['baseline_value']
+        mde = result['mde']
+        target = result['target_value']
+        mde_rel = result.get('mde_relative')
+
+        print(f"  Baseline:                {baseline:.2%}")
+        print(f"  Minimum Detectable MDE:  {mde:.2%} (absolute)")
+        if mde_rel is not None:
+            print(f"                           {mde_rel:.1%} (relative)")
+        print(f"  Detectable Target:       {target:.2%}")
+    else:
+        baseline = result['baseline_value']
+        mde = result['mde']
+        target = result['target_value']
+        mde_rel = result.get('mde_relative')
+
+        print(f"  Baseline:                {baseline}")
+        print(f"  Minimum Detectable MDE:  {mde:.4f} (absolute)")
+        if mde_rel is not None:
+            print(f"                           {mde_rel:.1%} (relative)")
+        print(f"  Detectable Target:       {target:.4f}")
+
+        if result.get('std_dev_control'):
+            print(f"  Std Dev (Ctrl):          {result['std_dev_control']}")
+        if result.get('std_dev_treatment') and result.get('std_dev_treatment') != result.get('std_dev_control'):
+            print(f"  Std Dev (Trt):           {result['std_dev_treatment']}")
+
+    print("=" * 40 + "\n")

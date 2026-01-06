@@ -5,6 +5,7 @@ A comprehensive Python tool for calculating sample sizes for A/B tests. Supports
 ## Features
 
 - **Proportions & Means**: Calculate sample sizes for conversion rates and continuous metrics
+- **Reverse Calculation**: Find MDE for a given sample size
 - **Multiple Test Types**: Z-test, T-test, Welch's T-test for unequal variances
 - **Advanced Designs**: Multi-group experiments with weighted traffic allocation
 - **Multiple Comparisons**: Bonferroni and Sidak corrections
@@ -32,13 +33,21 @@ from ab_test_calc import calculate_sample_size, print_report
 # Simple A/B test: detect 10% -> 12% conversion
 result = calculate_sample_size(baseline=0.10, mde=0.02)
 print_report(result)
+
+# Reverse: what MDE can I detect with 5000 samples?
+from ab_test_calc import calculate_mde_for_sample, print_mde_report
+result = calculate_mde_for_sample(baseline=0.10, sample_size_per_group=5000)
+print_mde_report(result)
 ```
 
 ### Command Line
 
 ```bash
-# Simple test
+# Calculate sample size
 python -m ab_test_calc.cli --baseline 0.10 --mde 0.02
+
+# Calculate MDE for given sample size
+python -m ab_test_calc.cli --baseline 0.10 --sample-size 5000
 
 # Interactive mode
 python -m ab_test_calc.cli --interactive

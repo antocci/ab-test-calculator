@@ -2,9 +2,10 @@
 
 import numpy as np
 from scipy import stats
+from scipy.optimize import brentq
 from typing import Dict, Optional, List, Any
 
-from .validation import validate_inputs
+from .validation import validate_inputs, validate_mde_inputs
 
 # Constants
 DEFAULT_POWER = 0.8
@@ -15,6 +16,11 @@ DEFAULT_SIDES = 2
 CONVERGENCE_THRESHOLD = 0.1
 MAX_ITERATIONS = 15
 INITIAL_N_ESTIMATE = 100000  # Large N for initial Z-approximation
+
+# MDE search bounds
+MDE_SEARCH_MIN = 1e-6
+MDE_SEARCH_MAX_PROPORTION = 0.5  # Max 50% absolute change for proportions
+MDE_SEARCH_TOLERANCE = 1e-6
 
 
 def get_critical_value(
@@ -391,4 +397,150 @@ def _calculate_weighted_design(
         'bottleneck_ratio': worst_case['ratio'],
         'weights': weights,
         'correction': correction,
+    }
+
+
+def calculate_mde_for_sample(
+    baseline: float,
+    sample_size_per_group: int,
+    power: float = DEFAULT_POWER,
+    alpha: float = DEFAULT_ALPHA,
+    ratio: float = 1.0,
+    metric_type: str = 'proportion',
+    std_dev: Optional[float] = None,
+    std_dev_2: Optional[float] = None,
+    test_type: str = DEFAULT_TEST_TYPE,
+    sides: int = DEFAULT_SIDES,
+) -> Dict[str, Any]:
+    """
+    Calculate minimum detectable effect for a given sample size.
+
+    This is the reverse of calculate_sample_size(): given a fixed N,
+    find the smallest effect size that can be detected with specified power.
+
+    Args:
+        baseline: Current metric value (0-1 for proportions, any value for means).
+        sample_size_per_group: Fixed sample size per group (control).
+        power: Statistical power (1 - Beta), typically 0.8.
+        alpha: Significance level (Type I error rate), typically 0.05.
+        ratio: Treatment/Control size ratio.
+        metric_type: 'proportion' or 'mean'.
+        std_dev: Standard deviation for control (required for means).
+        std_dev_2: Standard deviation for treatment (enables Welch's test).
+        test_type: 'z' (default) or 't'.
+        sides: 1 (one-sided) or 2 (two-sided).
+
+    Returns:
+        Dictionary with MDE and calculation metadata.
+
+    Examples:
+        >>> result = calculate_mde_for_sample(
+        ...     baseline=0.10,
+        ...     sample_size_per_group=5000,
+        ...     power=0.8
+        ... )
+        >>> print(f"MDE: {result['mde']:.4f}")
+        MDE: 0.0168
+    """
+    # Validate inputs
+    validate_mde_inputs(
+        baseline=baseline,
+        sample_size_per_group=sample_size_per_group,
+        power=power,
+        alpha=alpha,
+        ratio=ratio,
+        metric_type=metric_type,
+        std_dev=std_dev,
+        std_dev_2=std_dev_2,
+        test_type=test_type,
+        sides=sides,
+    )
+
+    n1 = sample_size_per_group
+
+    # Define search bounds for MDE
+    if metric_type == 'proportion':
+        # For proportions, MDE must keep target in (0, 1)
+        max_mde = min(MDE_SEARCH_MAX_PROPORTION, 1 - baseline - 0.001, baseline - 0.001)
+        max_mde = max(max_mde, MDE_SEARCH_MIN * 10)  # Ensure reasonable bound
+    else:
+        # For means, estimate max MDE based on std_dev
+        sigma = std_dev or 1.0
+        max_mde = sigma * 5  # 5 standard deviations as upper bound
+
+    def required_n_for_mde(mde: float) -> float:
+        """Return difference between required N and available N."""
+        if mde <= 0:
+            return float('inf')
+
+        try:
+            result = _calculate_single_pair(
+                baseline=baseline,
+                delta=mde,
+                power=power,
+                alpha_corrected=alpha,
+                ratio=ratio,
+                metric_type=metric_type,
+                std_dev=std_dev,
+                std_dev_2=std_dev_2,
+                test_type=test_type,
+                sides=sides,
+            )
+            return result - n1
+        except (ValueError, ZeroDivisionError):
+            return float('inf')
+
+    # Binary search for MDE where required_n == available_n
+    # We want to find MDE such that required_n_for_mde(MDE) = 0
+    # Lower MDE -> Higher N required (positive difference)
+    # Higher MDE -> Lower N required (negative difference)
+
+    try:
+        mde = brentq(
+            required_n_for_mde,
+            MDE_SEARCH_MIN,
+            max_mde,
+            xtol=MDE_SEARCH_TOLERANCE,
+        )
+    except ValueError:
+        # If brentq fails, fall back to binary search
+        low, high = MDE_SEARCH_MIN, max_mde
+        for _ in range(50):
+            mid = (low + high) / 2
+            diff = required_n_for_mde(mid)
+            if abs(diff) < 1:
+                mde = mid
+                break
+            if diff > 0:
+                low = mid
+            else:
+                high = mid
+        else:
+            mde = (low + high) / 2
+
+    # Calculate relative MDE
+    if baseline != 0:
+        mde_relative = mde / baseline
+    else:
+        mde_relative = None
+
+    # Calculate target value
+    target = baseline + mde
+
+    return {
+        'mde': mde,
+        'mde_relative': mde_relative,
+        'baseline_value': baseline,
+        'target_value': target,
+        'sample_size_per_group': n1,
+        'sample_size_treatment': int(np.ceil(n1 * ratio)),
+        'total_sample_size': int(n1 + np.ceil(n1 * ratio)),
+        'power': power,
+        'alpha': alpha,
+        'ratio': ratio,
+        'metric_type': metric_type,
+        'test_type': test_type,
+        'std_dev_control': std_dev if metric_type == 'mean' else None,
+        'std_dev_treatment': std_dev_2 if metric_type == 'mean' else None,
+        'sides': sides,
     }

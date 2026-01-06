@@ -22,13 +22,22 @@ from ab_test_calc import calculate_sample_size, print_report
 # Simple A/B test: detect 10% -> 12% conversion
 result = calculate_sample_size(baseline=0.10, mde=0.02)
 print_report(result)
+
+# Reverse: what MDE can I detect with 5000 samples?
+from ab_test_calc import calculate_mde_for_sample, print_mde_report
+
+result = calculate_mde_for_sample(baseline=0.10, sample_size_per_group=5000)
+print_mde_report(result)
 ```
 
 ### Command Line
 
 ```bash
-# Simple test
+# Calculate sample size for given MDE
 python -m ab_test_calc.cli --baseline 0.10 --mde 0.02
+
+# Calculate MDE for given sample size (reverse)
+python -m ab_test_calc.cli --baseline 0.10 --sample-size 5000
 
 # Interactive mode (guided wizard)
 python -m ab_test_calc.cli --interactive
@@ -122,13 +131,44 @@ result = calculate_sample_size(
 print_report(result)
 ```
 
+### 6. Reverse Calculation (MDE from Sample Size)
+
+When you have a fixed sample size and want to know what effect you can detect:
+
+```python
+from ab_test_calc import calculate_mde_for_sample, print_mde_report
+
+# What MDE can I detect with 5000 users per group?
+result = calculate_mde_for_sample(
+    baseline=0.10,
+    sample_size_per_group=5000,
+    power=0.8,
+    alpha=0.05,
+)
+print_mde_report(result)
+# Output: MDE ~1.7% absolute (17% relative)
+
+# For means
+result = calculate_mde_for_sample(
+    baseline=100,
+    sample_size_per_group=1000,
+    std_dev=20,
+    metric_type='mean',
+)
+print_mde_report(result)
+```
+
 ## Command Line Reference
 
 ```bash
-# Basic usage
+# Calculate sample size (default mode)
 python -m ab_test_calc.cli --baseline 0.10 --mde 0.02
 
-# All options
+# Calculate MDE for given sample size (reverse mode)
+python -m ab_test_calc.cli --baseline 0.10 --sample-size 5000
+python -m ab_test_calc.cli --baseline 0.10 --sample-size 5000 --solve-for mde
+
+# All options for sample size calculation
 python -m ab_test_calc.cli \
     --baseline 0.20 \
     --mde 0.05 \
@@ -141,6 +181,13 @@ python -m ab_test_calc.cli \
     --std_dev 20 \             # for means
     --n_treatments 3 \
     --correction bonferroni    # or 'sidak'
+
+# MDE calculation for means
+python -m ab_test_calc.cli \
+    --baseline 100 \
+    --sample-size 1000 \
+    --metric_type mean \
+    --std_dev 20
 ```
 
 ## API Reference
@@ -174,6 +221,32 @@ Dictionary with:
 - `alpha_corrected`: Alpha after correction
 - `bottleneck_pair`: (for weighted) limiting comparison
 - And more...
+
+### `calculate_mde_for_sample()`
+
+Reverse calculation: find minimum detectable effect for a given sample size.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `baseline` | float | required | Current metric value (0-1 for proportions) |
+| `sample_size_per_group` | int | required | Fixed sample size per group |
+| `power` | float | 0.8 | Statistical power |
+| `alpha` | float | 0.05 | Significance level |
+| `ratio` | float | 1.0 | Treatment/Control size ratio |
+| `metric_type` | str | 'proportion' | 'proportion' or 'mean' |
+| `std_dev` | float | None | Standard deviation (required for means) |
+| `std_dev_2` | float | None | Treatment SD (enables Welch's test) |
+| `test_type` | str | 'z' | 'z' or 't' |
+| `sides` | int | 2 | 1 (one-sided) or 2 (two-sided) |
+
+### Return Value (MDE)
+
+Dictionary with:
+- `mde`: Minimum detectable effect (absolute)
+- `mde_relative`: MDE as proportion of baseline
+- `target_value`: baseline + mde
+- `sample_size_per_group`: Input sample size
+- `total_sample_size`: Total samples (control + treatment)
 
 ## Glossary
 
@@ -226,6 +299,7 @@ Mathematical core of the calculator. Contains:
 | Function | Purpose |
 |----------|---------|
 | `calculate_sample_size()` | Main entry point. Orchestrates the calculation. |
+| `calculate_mde_for_sample()` | Reverse calculation: MDE from sample size. |
 | `_calculate_single_pair()` | Calculates N for one control-treatment pair. |
 | `_calculate_weighted_design()` | Handles multi-group weighted designs (worst-case pair logic). |
 | `get_critical_value()` | Returns z/t critical values for given alpha and sides. |
@@ -263,7 +337,8 @@ Formats calculation results for display:
 
 | Function | Purpose |
 |----------|---------|
-| `print_report(result)` | Prints formatted table to console |
+| `print_report(result)` | Prints sample size results to console |
+| `print_mde_report(result)` | Prints MDE calculation results to console |
 | `format_result_summary(result)` | Returns one-line summary string |
 
 Example output:

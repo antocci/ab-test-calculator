@@ -125,3 +125,71 @@ def validate_inputs(
     # Raise all errors at once
     if errors:
         raise ValidationError("\n".join(errors))
+
+
+def validate_mde_inputs(
+    baseline: float,
+    sample_size_per_group: int,
+    power: float,
+    alpha: float,
+    ratio: float,
+    metric_type: str,
+    std_dev: Optional[float],
+    std_dev_2: Optional[float],
+    test_type: str,
+    sides: int,
+) -> None:
+    """
+    Validate input parameters for MDE calculation (reverse problem).
+
+    Raises:
+        ValidationError: If any parameter is invalid.
+    """
+    errors = []
+
+    # Alpha validation
+    if not (0 < alpha < 1):
+        errors.append(f"alpha must be between 0 and 1, got {alpha}")
+
+    # Power validation
+    if not (0 < power < 1):
+        errors.append(f"power must be between 0 and 1, got {power}")
+
+    # Sides validation
+    if sides not in (1, 2):
+        errors.append(f"sides must be 1 or 2, got {sides}")
+
+    # Metric type validation
+    if metric_type not in ('proportion', 'mean'):
+        errors.append(f"metric_type must be 'proportion' or 'mean', got '{metric_type}'")
+
+    # Test type validation
+    if test_type not in ('z', 't'):
+        errors.append(f"test_type must be 'z' or 't', got '{test_type}'")
+
+    # Baseline validation for proportions
+    if metric_type == 'proportion':
+        if not (0 < baseline < 1):
+            errors.append(f"For proportions, baseline must be between 0 and 1, got {baseline}")
+
+    # Sample size validation
+    if sample_size_per_group < 1:
+        errors.append(f"sample_size_per_group must be at least 1, got {sample_size_per_group}")
+
+    # Ratio validation
+    if ratio <= 0:
+        errors.append(f"ratio must be positive, got {ratio}")
+
+    # Standard deviation validation for means
+    if metric_type == 'mean':
+        if std_dev is None:
+            errors.append("std_dev is required for metric_type='mean'")
+        elif std_dev <= 0:
+            errors.append(f"std_dev must be positive, got {std_dev}")
+
+        if std_dev_2 is not None and std_dev_2 <= 0:
+            errors.append(f"std_dev_2 must be positive, got {std_dev_2}")
+
+    # Raise all errors at once
+    if errors:
+        raise ValidationError("\n".join(errors))

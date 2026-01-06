@@ -4,10 +4,10 @@ import argparse
 import sys
 from typing import Optional, Any, List
 
-from .core import calculate_sample_size, DEFAULT_POWER, DEFAULT_ALPHA, DEFAULT_MDE_TYPE
-from .report import print_report
+from .core import calculate_sample_size, calculate_mde_for_sample, DEFAULT_POWER, DEFAULT_ALPHA, DEFAULT_MDE_TYPE
+from .report import print_report, print_mde_report
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 
 def prompt(
@@ -354,8 +354,11 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Simple conversion rate test (10% -> 12%)
+  # Calculate sample size (default mode)
   %(prog)s --baseline 0.10 --mde 0.02
+
+  # Calculate MDE for given sample size (reverse mode)
+  %(prog)s --baseline 0.10 --sample-size 5000 --solve-for mde
 
   # Mean test with standard deviation
   %(prog)s --metric_type mean --baseline 100 --mde 5 --std_dev 20
@@ -374,12 +377,17 @@ Examples:
     # Mode
     parser.add_argument('--interactive', '-i', action='store_true',
                         help='Run interactive wizard')
+    parser.add_argument('--solve-for', choices=['sample_size', 'mde'],
+                        default='sample_size',
+                        help='What to calculate: sample_size (default) or mde')
 
     # Required parameters
     parser.add_argument('--baseline', type=float,
                         help='Current metric value (e.g., 0.10 for 10%% conversion)')
     parser.add_argument('--mde', type=float,
-                        help='Minimum Detectable Effect')
+                        help='Minimum Detectable Effect (for sample_size mode)')
+    parser.add_argument('--sample-size', type=int, dest='sample_size',
+                        help='Sample size per group (for mde mode)')
 
     # Metric configuration
     parser.add_argument('--metric_type', choices=['proportion', 'mean'],
@@ -425,47 +433,72 @@ Examples:
     args = parser.parse_args()
 
     # Interactive mode
-    if args.interactive or (args.baseline is None and args.mde is None):
+    if args.interactive or (args.baseline is None and args.mde is None and args.sample_size is None):
         run_interactive()
         return
 
-    # Validate required args for CLI mode
-    if args.baseline is None or args.mde is None:
-        parser.error("--baseline and --mde are required (or use --interactive)")
+    # Determine mode based on arguments
+    if args.sample_size is not None or args.solve_for == 'mde':
+        # MDE calculation mode (reverse problem)
+        if args.baseline is None:
+            parser.error("--baseline is required")
+        if args.sample_size is None:
+            parser.error("--sample-size is required for MDE calculation (or use --mde for sample size mode)")
 
-    # Parse weights if provided
-    weights = None
-    if args.weights:
         try:
-            parts = args.weights.replace(',', ' ').split()
-            weights = [float(x) for x in parts]
-        except ValueError:
-            parser.error(f"Invalid weights format: {args.weights}")
+            result = calculate_mde_for_sample(
+                baseline=args.baseline,
+                sample_size_per_group=args.sample_size,
+                power=args.power,
+                alpha=args.alpha,
+                ratio=args.ratio,
+                metric_type=args.metric_type,
+                std_dev=args.std_dev,
+                std_dev_2=args.std_dev_2,
+                test_type=args.test_type,
+                sides=args.sides,
+            )
+            print_mde_report(result)
+        except Exception as e:
+            print(f"Error: {e}")
+            sys.exit(1)
+    else:
+        # Sample size calculation mode (default)
+        if args.baseline is None or args.mde is None:
+            parser.error("--baseline and --mde are required (or use --sample-size for MDE mode)")
 
-    # Calculate
-    try:
-        result = calculate_sample_size(
-            baseline=args.baseline,
-            mde=args.mde,
-            power=args.power,
-            alpha=args.alpha,
-            mde_type=args.mde_type,
-            ratio=args.ratio,
-            metric_type=args.metric_type,
-            std_dev=args.std_dev,
-            std_dev_2=args.std_dev_2,
-            test_type=args.test_type,
-            n_comparisons=args.n_comparisons,
-            correction=args.correction,
-            n_controls=args.n_controls,
-            n_treatments=args.n_treatments,
-            sides=args.sides,
-            weights=weights,
-        )
-        print_report(result)
-    except Exception as e:
-        print(f"Error: {e}")
-        sys.exit(1)
+        # Parse weights if provided
+        weights = None
+        if args.weights:
+            try:
+                parts = args.weights.replace(',', ' ').split()
+                weights = [float(x) for x in parts]
+            except ValueError:
+                parser.error(f"Invalid weights format: {args.weights}")
+
+        try:
+            result = calculate_sample_size(
+                baseline=args.baseline,
+                mde=args.mde,
+                power=args.power,
+                alpha=args.alpha,
+                mde_type=args.mde_type,
+                ratio=args.ratio,
+                metric_type=args.metric_type,
+                std_dev=args.std_dev,
+                std_dev_2=args.std_dev_2,
+                test_type=args.test_type,
+                n_comparisons=args.n_comparisons,
+                correction=args.correction,
+                n_controls=args.n_controls,
+                n_treatments=args.n_treatments,
+                sides=args.sides,
+                weights=weights,
+            )
+            print_report(result)
+        except Exception as e:
+            print(f"Error: {e}")
+            sys.exit(1)
 
 
 if __name__ == "__main__":
