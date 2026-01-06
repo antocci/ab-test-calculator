@@ -40,7 +40,7 @@ print_report(result)
 # Simple test
 python -m ab_test_calc.cli --baseline 0.10 --mde 0.02
 
-# Interactive mode (recommended for beginners)
+# Interactive mode
 python -m ab_test_calc.cli --interactive
 ```
 
@@ -93,13 +93,11 @@ See [GUIDE.md](GUIDE.md) for:
 - Architecture details
 - More examples
 
-## Running Tests
+## Testing
 
 ```bash
 pytest
 ```
-
-All 35 tests passing.
 
 ## License
 

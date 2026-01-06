@@ -199,7 +199,7 @@ ab_tests/
 │   ├── report.py
 │   └── cli.py
 ├── tests/
-│   └── test_ab_calc.py     # Test suite (35 tests)
+│   └── test_ab_calc.py     # Tests
 ├── _extras/                # Archived/optional files
 ├── example_notebook.ipynb  # Jupyter examples
 ├── run_example.py          # Python examples
@@ -221,7 +221,7 @@ This file re-exports functions from other modules so users don't need to know th
 
 ### `core.py` — Calculation Engine
 
-The mathematical heart of the calculator (~280 lines). Contains:
+Mathematical core of the calculator. Contains:
 
 | Function | Purpose |
 |----------|---------|
@@ -238,7 +238,7 @@ Key formulas implemented:
 
 ### `validation.py` — Input Validation
 
-Validates all parameters before calculation (~110 lines). Catches errors early with clear messages:
+Validates all parameters before calculation. Catches errors early with clear messages:
 
 ```python
 from ab_test_calc.validation import ValidationError
@@ -259,7 +259,7 @@ Checks performed:
 
 ### `report.py` — Output Formatting
 
-Formats calculation results for display (~95 lines):
+Formats calculation results for display:
 
 | Function | Purpose |
 |----------|---------|
@@ -278,7 +278,7 @@ Design:          1 Control(s) vs 1 Treatment(s)
 
 ### `cli.py` — Command Line Interface
 
-Handles user interaction (~350 lines):
+Handles user interaction:
 
 | Function | Purpose |
 |----------|---------|
@@ -320,17 +320,7 @@ User Input
 └───────────┘
 ```
 
-## Why This Structure?
-
-| Benefit | Explanation |
-|---------|-------------|
-| **Testability** | Each module can be tested independently |
-| **Maintainability** | Changes to UI don't affect math, and vice versa |
-| **Reusability** | Use `core.py` in other projects without CLI |
-| **Readability** | ~200-350 lines per file instead of 685 in one |
-| **Separation of concerns** | Input handling, logic, and output are separate |
-
-## Running Tests
+## Testing
 
 ```bash
 # Run all tests
