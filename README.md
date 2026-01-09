@@ -94,6 +94,26 @@ result = calculate_sample_size(
 )
 ```
 
+## Interactive Mode
+
+For guided setup with explanations, run:
+
+```bash
+python -m ab_test_calc.cli --interactive
+```
+
+The wizard walks you through each parameter step-by-step:
+
+1. **Metric type** — conversion rate (proportion) or continuous value (mean)
+2. **Baseline** — your current metric value
+3. **MDE** — minimum effect size you want to detect
+4. **Variability** — standard deviation (for mean metrics only)
+5. **Statistical parameters** — power, alpha, one/two-sided, z/t-test
+6. **Experimental design** — number of groups, traffic allocation
+7. **Multiple comparisons** — Bonferroni/Sidak corrections if needed
+
+Each step includes explanations and sensible defaults — just press Enter to accept them.
+
 ## Documentation
 
 See [GUIDE.md](GUIDE.md) for:
@@ -101,13 +121,3 @@ See [GUIDE.md](GUIDE.md) for:
 - Command-line options
 - Architecture details
 - More examples
-
-## Testing
-
-```bash
-pytest
-```
-
-## License
-
-MIT
